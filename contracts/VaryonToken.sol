@@ -61,7 +61,7 @@ contract Owned {
 
   // Functions ------------------------
 
-  function Owned() public {
+  constructor() public {
     owner = msg.sender;
     isAdmin[owner] = true;
   }
@@ -344,7 +344,7 @@ contract VaryonToken is ERC20Token {
 
   /* Initialize */
 
-  function VaryonToken() public {
+  constructor() public {
 
     // check dates
     require( atNow()           < date_ico_presale );
@@ -454,7 +454,7 @@ contract VaryonToken is ERC20Token {
     
     // register locked tokens
     if (term[idx] == 0) term[idx] = _term;
-    amnt[i] = amnt[i].add(_tokens);
+    amnt[idx] = amnt[idx].add(_tokens);
     
   }
 
@@ -644,13 +644,13 @@ contract VaryonToken is ERC20Token {
   
   /* convert ether to tokens */
 
-  function ethToTokens(uint _eth) private view returns (uint tokens) {
+  function ethToTokens(uint _eth) private pure returns (uint tokens) {
     tokens = _eth.mul(TOKENS_PER_ETH) / 1 ether;
   }
   
   /* convert tokens to ether */
   
-  function tokensToEth(uint _tokens) private view returns (uint eth) {
+  function tokensToEth(uint _tokens) private pure returns (uint eth) {
     eth = _tokens.mul(1 ether) / TOKENS_PER_ETH;
   }
   
@@ -813,8 +813,9 @@ contract VaryonToken is ERC20Token {
     if (eth_returned > 0) msg.sender.transfer(eth_returned);
 
     // send ether to wallet if soft cap reached
-    if ( softCapReached() && this.balance > totalEthPending ) {
-      wallet.transfer(this.balance - totalEthPending);
+    address thisAddress = this;
+    if ( softCapReached() && thisAddress.balance > totalEthPending ) {
+      wallet.transfer(thisAddress.balance - totalEthPending);
     }
     
     // log
@@ -921,8 +922,9 @@ contract VaryonToken is ERC20Token {
     if (eth_to_return > 0) _account.transfer(eth_to_return);
 
     // send ether to wallet if soft cap reached
-    if ( softCapReached() && this.balance > totalEthPending ) {
-      wallet.transfer(this.balance - totalEthPending);
+    address thisAddress = this;
+    if ( softCapReached() && thisAddress.balance > totalEthPending ) {
+      wallet.transfer(thisAddress.balance - totalEthPending);
     }
     
     // log
@@ -1043,4 +1045,3 @@ contract VaryonToken is ERC20Token {
   }
   
 }
-
