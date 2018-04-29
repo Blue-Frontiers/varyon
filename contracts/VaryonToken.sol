@@ -279,6 +279,8 @@ contract VaryonToken is ERC20Token {
     uint public tokensIcoOffline = 0;
     uint public tokensIcoBonus   = 0;
     uint public tokensMinted     = 0;
+    
+    mapping(address => uint) public balancesBonus;
   
   /* Keep track of ether received */
   
@@ -793,6 +795,7 @@ contract VaryonToken is ERC20Token {
     
     // balances    
     balances[msg.sender] = balances[msg.sender].add(tokens_issued);
+    balancesBonus[msg.sender] = balancesBonus[msg.sender].add(tokens_bonus);
     tokensIssuedTotal = tokensIssuedTotal.add(tokens_issued);
     tokensIcoIssued = tokensIcoIssued.add(tokens);
     tokensIcoCrowd = tokensIcoCrowd.add(tokens);
@@ -902,6 +905,7 @@ contract VaryonToken is ERC20Token {
 
     // process tokens issued
     balances[_account] = tokens_issued;
+    balancesBonus[_account] = tokens_bonus;
     tokensIssuedTotal = tokensIssuedTotal.add(tokens_issued);
     tokensIcoIssued = tokensIcoIssued.add(tokens);
     tokensIcoCrowd = tokensIcoCrowd.add(tokens);
