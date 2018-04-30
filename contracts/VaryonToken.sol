@@ -261,7 +261,7 @@ contract VaryonToken is ERC20Token {
   
     /* tokens from off-chain contributions (no eth returns for these tokens) */
   
-    mapping(address => uint) public balancesOffchain;
+    mapping(address => uint) public balancesOffline;
   
     /* tokens - pending */
   
@@ -273,8 +273,10 @@ contract VaryonToken is ERC20Token {
 
     // mapping(address => uint) balances; // in ERC20Token
     
-    // uint public tokensIssuedTotal = 0; // in ERC20Token = tokensIcoIssued + tokensMinted 
-    uint public tokensIcoIssued  = 0; // = tokensIcoCrowd + tokensIcoOffline + tokensIcoBonus
+    // uint public tokensIssuedTotal = 0; // in ERC20Token
+    // tokensIssuedTotal = tokensIcoIssued + tokensIcoBonus + tokensMinted 
+    
+    uint public tokensIcoIssued  = 0; // = tokensIcoCrowd + tokensIcoOffline 
     uint public tokensIcoCrowd   = 0;
     uint public tokensIcoOffline = 0;
     uint public tokensIcoBonus   = 0;
@@ -331,7 +333,9 @@ contract VaryonToken is ERC20Token {
   
   event RegisterPending(address indexed account, uint tokens, uint ethContributed, uint ethReturned);
   event WhitelistingEvent(address indexed account, uint tokens, uint tokensBonus, uint tokensReturned, uint ethContributed, uint ethReturned);
-  event RegisterContribution(address indexed _acconut, uint _tokens, uint _tokens_bonus, uint _ethContributed, uint _ethReturned);
+  event RegisterContribution(address indexed _account, uint _tokens, uint _tokens_bonus, uint _ethContributed, uint _ethReturned);
+  
+  event OfflinePending(address indexed _account, uint _tokens);
   
   // event Returned(address indexed _account, uint _tokens);
   event RefundBlacklistedTokens(address indexed account, uint tokens);
@@ -368,7 +372,9 @@ contract VaryonToken is ERC20Token {
     buyTokens();
   }
 
-  // Information Functions ------------
+  //
+  // Information Functions ====================================================
+  //
   
   /* What time is it? */
   
@@ -379,54 +385,68 @@ contract VaryonToken is ERC20Token {
   /* Are tokens tradeable */
   
   function tradeable() public view returns (bool) {
-    if (softCapReached() && atNow() > date_ico_end) return true;
+    if (thresholdReached() && atNow() > date_ico_end) return true;
     return false;
   }
   
   /* Has soft cap been reached */
   
-  function softCapReached() public view returns (bool) {
+  function thresholdReached() public view returns (bool) {
     if (tokensIcoIssued >= TOKEN_THRESHOLD) return true;
     return false;
   }
   
-  /* Available to mint by owner */
+  /* Tokens available to mint by owner */
   
   function availableToMint() public view returns (uint available) {
-    if (atNow() <= date_ico_deadline) {
+    if (atNow() <= date_ico_end) {
       available = TOKEN_TOTAL_SUPPLY.sub(TOKEN_ICO_CAP).sub(MAX_BONUS_TOKENS);
+    } else if (atNow() <= date_ico_deadline) {
+      available = TOKEN_TOTAL_SUPPLY.sub(tokensIssuedTotal).sub(tokensIcoPending);
     } else {
       available = TOKEN_TOTAL_SUPPLY.sub(tokensIssuedTotal);
     }
   }
   
-  /* Unlocked tokens in an account */
-  
-  function unlockedTokens(address _account) public view returns (uint _unlockedTokens) {
-    uint locked_tokens = 0;
-    uint[6] storage term = lockTerm[_account];
-    uint[6] storage amnt = lockAmnt[_account];
-    for (uint i = 0; i < LOCK_SLOTS; i++) {
-      if (term[i] > atNow()) locked_tokens = locked_tokens.add(amnt[i]);
+  /* Currently available tokens for sale */
+
+  function tokensAvailableIco() private view returns (uint) {
+    if (atNow() <= date_ico_main) {
+      return TOKEN_PRESALE_CAP.sub(tokensIcoIssued).sub(tokensIcoPending);
+    } else {
+      return TOKEN_ICO_CAP.sub(tokensIcoIssued).sub(tokensIcoPending);
     }
-    _unlockedTokens = balances[_account].sub(locked_tokens);
+  }
+  
+  /* Minimum number of tokens per contributor */
+
+  function minumumInvestment() private view returns (uint) {
+    if (atNow() <= date_ico_main) return MIN_PURCHASE_PRESALE;
+    return MIN_PURCHASE_MAIN;
+  }
+  
+  /* Convert ether to tokens */
+
+  function ethToTokens(uint _eth) private pure returns (uint tokens) {
+    tokens = _eth.mul(TOKENS_PER_ETH).mul(E6) / 1 ether;
+  }
+  
+  /* Convert tokens to ether */
+  
+  function tokensToEth(uint _tokens) private pure returns (uint eth) {
+    eth = _tokens.mul(1 ether) / TOKENS_PER_ETH.mul(E6);
+  }
+  
+  /* Compute bonus tokens */
+  
+  function getBonus(uint _tokens) private view returns (uint) {
+    if (atNow() <= date_ico_main) return _tokens.mul(BONUS)/100;
+    return 0;
   }
 
-  /* Checks if a Lock Slot is available for an account 
-    (does not check slot 0 which is reserved for the ICO) */
-  
-  function isAvailableLockSlot(address _account, uint _term) public view returns (bool) {
-    // true if locking term has already passed
-    if (_term < atNow()) return true;
-    // case of term in the future
-    uint[6] storage term = lockTerm[_account];
-    for (uint i = 1; i < LOCK_SLOTS; i++) {
-      if (term[i] < atNow() || term[i] == _term) return true;
-    }
-    return false;
-  }
-
-  // Token locking functions ------------------  
+  //
+  // Token locking functions ==================================================
+  //
   
   /* Register locked tokens (we do not use slot 0, which is reserved for the ICO)  */
   
@@ -460,7 +480,35 @@ contract VaryonToken is ERC20Token {
     
   }
 
-  // Owner Functions ------------------
+  /* Unlocked tokens in an account */
+  
+  function unlockedTokens(address _account) public view returns (uint _unlockedTokens) {
+    uint locked_tokens = 0;
+    uint[6] storage term = lockTerm[_account];
+    uint[6] storage amnt = lockAmnt[_account];
+    for (uint i = 0; i < LOCK_SLOTS; i++) {
+      if (term[i] > atNow()) locked_tokens = locked_tokens.add(amnt[i]);
+    }
+    _unlockedTokens = balances[_account].sub(locked_tokens);
+  }
+
+  /* Checks if a Lock Slot is available for an account */ 
+  /* (does not check slot 0 which is reserved for the ICO) */
+  
+  function isAvailableLockSlot(address _account, uint _term) public view returns (bool) {
+    // true if locking term has already passed
+    if (_term < atNow()) return true;
+    // case of term in the future
+    uint[6] storage term = lockTerm[_account];
+    for (uint i = 1; i < LOCK_SLOTS; i++) {
+      if (term[i] < atNow() || term[i] == _term) return true;
+    }
+    return false;
+  }
+
+  //
+  // Set Wallet and Dates =====================================================
+  //
   
   /* Change the crowdsale wallet address */
 
@@ -507,12 +555,42 @@ contract VaryonToken is ERC20Token {
     emit IcoDateUpdated(4, _unixts);
   }
 
+  //
+  // Whitelisting and blacklisting --------------------------------------------
+  //
+  
   /* Whitelisting */
   
-  function addToWhitelist(address _account, uint _limit, uint _threshold, uint _term) public onlyAdmin {
+  function addToWhitelist(address _account) public onlyAdmin {
+    pWhitelist(_account, 0, 0, 0);
+  }
+  
+  function addToWhitelistParams(address _account, uint _limit, uint _threshold, uint _term) public onlyAdmin {
+    pWhitelist(_account, _limit, _threshold, _term);
+  }
+  
+  function addToWhitelistMultiple(address[] _accounts) public onlyAdmin {
+    for (uint i = 0; i < _accounts.length; i++) {
+      pWhitelist(_accounts[i], 0, 0, 0);
+    }
+  }
+
+  function addToWhitelistParamsMultiple(address[] _accounts, uint[] _limits, uint[] _thresholds, uint[] _terms) public onlyAdmin {
+    require( _accounts.length == _limits.length );
+    require( _accounts.length == _thresholds.length );
+    require( _accounts.length == _terms.length );
+    for (uint i = 0; i < _accounts.length; i++) {
+      pWhitelist(_accounts[i], _limits[i], _thresholds[i], _terms[i]);
+    }
+  }  
+  
+  function pWhitelist(address _account, uint _limit, uint _threshold, uint _term) private {
     // checks
-    require( !whitelist[_account], "account is whitelisted" );
+    require( atNow() < date_ico_deadline );
+    require( !whitelist[_account], "account is already whitelisted" );
     require( !blacklist[_account], "account is blacklisted" );
+    
+    // whitelisting parameter checks
     if (_threshold > 0 ) require ( _threshold > _limit, "threshold not above limit" );
     if (_term > 0) {
       require( _term > atNow(), "the locking period cannot be in the past");
@@ -527,15 +605,27 @@ contract VaryonToken is ERC20Token {
     emit Whitelisted(_account, _limit, _threshold, _term);
     
     // process contributions, if any
-    if (atNow() < date_ico_deadline && balancesPending[_account] > 0) processWhitelisting(_account);
-  }
-
+    if (balancesPending[_account] > 0) processWhitelisting(_account);
+  }  
+  
+  
   /* Blacklisting */
   
   function addToBlacklist(address _account) public onlyAdmin {
+    pBlacklist(_account);
+  }
+  
+  function addToBlacklistMultiple(address[] _accounts) public onlyAdmin {
+    for (uint i = 0; i < _accounts.length; i++) {
+      pBlacklist(_accounts[i]);
+    }
+  }
+  
+  function pBlacklist(address _account) private {
     // checks
+    require( atNow() < date_ico_deadline, "no sense blacklisting after deadline");
     require( !whitelist[_account], "account is whitelisted" );
-    require( !blacklist[_account], "account is blacklisted" );
+    require( !blacklist[_account], "account is already blacklisted" );
 
     // add to blacklist
     blacklist[_account] = true;
@@ -546,7 +636,7 @@ contract VaryonToken is ERC20Token {
     
       // tokens
       uint tokens = balancesPending[_account];
-      tokensIcoPending = tokensIcoPending.sub(balancesPending[_account]);
+      tokensIcoPending = tokensIcoPending.sub(tokens);
       balancesPending[_account] = 0;
       emit RefundBlacklistedTokens(_account, tokens);
 
@@ -561,9 +651,24 @@ contract VaryonToken is ERC20Token {
     }
   }
   
-  /* Minting of tokens by owner */
+  //
+  // Minting of tokens by owner -----------------------------------------------
+  //
+  
+  /* Minting of unrestricted tokens */
 
   function mintTokens(address _account, uint _tokens) public onlyOwner {
+    pMintTokens(_account, _tokens);
+  }
+  
+  function mintTokensMultiple(address[] _accounts, uint[] _tokens) public onlyOwner {
+    require( _accounts.length == _tokens.length );
+    for (uint i = 0; i < _accounts.length; i++) {
+      pMintTokens(_accounts[i], _tokens[i]);
+    }    
+  }
+  
+  function pMintTokens(address _account, uint _tokens) private {
     // checks
     require( _account != 0x0 );
     require( _tokens > 0 );
@@ -579,9 +684,21 @@ contract VaryonToken is ERC20Token {
     emit TokensMinted(_account, _tokens, 0);
   }
 
-  /* Minting of locked tokens by owner */
+  /* Minting of locked tokens */
 
   function mintTokensLocked(address _account, uint _tokens, uint _term) public onlyOwner {
+    pMintTokensLocked(_account, _tokens, _term);
+  }
+  
+  function mintTokensLockedMultiple(address[] _accounts, uint[] _tokens, uint[] _terms) public onlyOwner {
+    require( _accounts.length == _tokens.length );
+    require( _accounts.length == _terms.length );
+    for (uint i = 0; i < _accounts.length; i++) {
+      pMintTokensLocked(_accounts[i], _tokens[i], _terms[i]);
+    }    
+  }
+  
+  function pMintTokensLocked(address _account, uint _tokens, uint _term) private {
     // checks
     require( _account != 0x0 );
     require( _tokens > 0 );
@@ -619,55 +736,38 @@ contract VaryonToken is ERC20Token {
     emit IcoLockChanged(_account, term, _unixts);
   }
 
-  /* Transfer out any accidentally sent ERC20 tokens */
-
-  function transferAnyERC20Token(address tokenAddress, uint amount) public onlyOwner returns (bool success) {
-      return ERC20Interface(tokenAddress).transfer(owner, amount);
-  }
-
-
-  // ==========================================================================
+  //
+  // Processing Offline contributions =============================================
+  //
   
-  // Private functions (utilities) ----------------
+  function offlineContribution(address _account, uint _tokens) public onlyAdmin {
+    require( atNow() < date_ico_end );
+    require( _tokens <= tokensAvailableIco() );
 
-  /* Currently available tokens for sale */
-
-  function tokensAvailableIco() private view returns (uint) {
-    if (atNow() <= date_ico_main) {
-      return TOKEN_PRESALE_CAP.sub(tokensIcoIssued).sub(tokensIcoPending);
+    // buy tokens
+    if (whitelist[_account]) {
+      offlineTokensWhitelist(_account, _tokens);
     } else {
-      return TOKEN_ICO_CAP.sub(tokensIcoIssued).sub(tokensIcoPending);
-    }
+      offlineTokensPending(_account, _tokens);
+    }    
   }
   
-  /* Minimum number of tokens per contributor */
-
-  function minumumInvestment() private view returns (uint) {
-    if (atNow() <= date_ico_main) return MIN_PURCHASE_PRESALE;
-    return MIN_PURCHASE_MAIN;
-  }
-  
-  /* convert ether to tokens */
-
-  function ethToTokens(uint _eth) private pure returns (uint tokens) {
-    tokens = _eth.mul(TOKENS_PER_ETH).mul(E6) / 1 ether;
-  }
-  
-  /* convert tokens to ether */
-  
-  function tokensToEth(uint _tokens) private pure returns (uint eth) {
-    eth = _tokens.mul(1 ether) / TOKENS_PER_ETH.mul(E6);
-  }
-  
-  /* compute bonus tokens */
-  
-  function getBonus(uint _tokens) private view returns (uint) {
-    if (atNow() <= date_ico_main) return _tokens.mul(BONUS)/100;
-    return 0;
-
+  function offlineTokensWhitelist(address _account, uint _tokens) private {
+    // todo
+    // may trigger some refactoring
   }
 
-  // Private functions (utilities) ----------------
+  function offlineTokensPending(address _account, uint _tokens) private {
+    balancesPending[_account] = balancesPending[_account].add(_tokens);
+    balancesOffline[_account] = balancesOffline[_account].add(_tokens);
+    tokensIcoPending = tokensIcoPending.add(_tokens);
+    emit OfflinePending(_account, _tokens);
+  }
+  
+
+  //
+  // Processing ICO contributions =============================================
+  //
 
   /* main function */ 
 
@@ -676,7 +776,7 @@ contract VaryonToken is ERC20Token {
     // checks
     require( atNow() > date_ico_presale && atNow() < date_ico_end, "outside of ICO period" );
     require( msg.value >= MINIMUM_ETH_CONTRIBUTION, "fail minimum contribution" );
-    require( blacklist[msg.sender] == false, "blacklisted sending address" );
+    require( !blacklist[msg.sender], "blacklisted sending address" );
     require( tokensAvailableIco() > 0, "no more tokens available" );
     
     // buy tokens
@@ -688,7 +788,7 @@ contract VaryonToken is ERC20Token {
 
   }
   
-  /* contributions from non-whitelisted addresses -- simplest case */
+  /* contributions from non-whitelisted addresses */
 
   function buyTokensPending() private {
     
@@ -820,7 +920,7 @@ contract VaryonToken is ERC20Token {
 
     // send ether to wallet if soft cap reached
     address thisAddress = this;
-    if ( softCapReached() && thisAddress.balance > totalEthPending ) {
+    if ( thresholdReached() && thisAddress.balance > totalEthPending ) {
       wallet.transfer(thisAddress.balance - totalEthPending);
     }
     
@@ -930,7 +1030,7 @@ contract VaryonToken is ERC20Token {
 
     // send ether to wallet if soft cap reached
     address thisAddress = this;
-    if ( softCapReached() && thisAddress.balance > totalEthPending ) {
+    if ( thresholdReached() && thisAddress.balance > totalEthPending ) {
       wallet.transfer(thisAddress.balance - totalEthPending);
     }
     
@@ -940,12 +1040,37 @@ contract VaryonToken is ERC20Token {
 
   }
   
-  /* Cancel and return pending contribution */
+  //
+  // Cancel or Reclaim pending contributions ==================================
+  //
   
+  /* Admin cancels pending contribution during ICO */
+
   function cancelPending(address _account) public onlyAdmin {
-    
-    // check if there is anything to do
-    require( balancesPending[_account] > 0, "cancelPending: no pending tokens");
+    require( atNow() < date_ico_end );
+    pRevertPending(_account);
+  }
+
+  function cancelPendingMultiple(address[] _accounts) public onlyAdmin {
+    require( atNow() < date_ico_end );
+    for (uint i = 0; i < _accounts.length; i++) {
+      pRevertPending(_accounts[i]);
+    }
+  }
+  
+  /* Contributor reclaims pending contribution after deadline */
+  /* (case of successful ICO) */ 
+  
+  function reclaimPending() public {
+    require( thresholdReached() && atNow() > date_ico_deadline );
+    pRevertPending(msg.sender);
+  }
+  
+  /* private revert function for pending */
+  
+  function pRevertPending(address _account) private {
+    // nothing to do if there are no pending tokens
+    if (balancesPending[_account] > 0) return;
       
     // tokens
     uint tokens_to_cancel = balancesPending[_account];
@@ -956,48 +1081,62 @@ contract VaryonToken is ERC20Token {
     uint eth_to_return = ethPending[_account];
     ethPending[_account] = 0;
     totalEthPending = totalEthPending.sub(eth_to_return);
-    _account.transfer(eth_to_return);
+    if (eth_to_return > 0) _account.transfer(eth_to_return);
       
     // log
     emit ReturnedPending(_account, tokens_to_cancel, eth_to_return, tokensIcoPending, totalEthPending);
-    
   }
-  
-  /* Refund eth in case of failed ICO 
-     NB: we do not modify any balances */
-  
+
+  //
+  // Refunds in case of failed ICO ============================================
+  //
+
   function reclaimEth() public {
-    intReclaimEth(msg.sender);
+    pReclaimEth(msg.sender, false);
   }
 
   function reclaimEthAdmin(address _account) public onlyAdmin {
-    intReclaimEth(_account);
+    pReclaimEth(_account, false);
   }
   
-  function reclaimEthAdminMultiple(address[] _addresses) public onlyAdmin {
-    for (uint i = 0; i < _addresses.length; i++) {
-      intReclaimEth(_addresses[i]);
+  function reclaimEthAdminMultiple(address[] _accounts) public onlyAdmin {
+    for (uint i = 0; i < _accounts.length; i++) {
+      pReclaimEth(_accounts[i], true);
     }
   }
   
-  function intReclaimEth(address _account) internal {
-    require( !softCapReached(), "soft cap reached" );
-    require( atNow() > date_ico_deadline, "too early" );
-    require( ethPending[_account] > 0 || ethContributed[_account] > 0, "nothing to return");
-    require( !refundClaimed[_account], "refund already claimed");
+  /* private reclaim function - note  we do not modify any balances */
+  
+  function pReclaimEth(address _account, bool _silent) private {
+    // conditions
+    if (_silent) {
+      if ( thresholdReached() || atNow() <= date_ico_deadline ) return;
+      if ( ethPending[_account] == 0 && ethContributed[_account] == 0 ) return;
+      if ( refundClaimed[_account] ) return;
+    } else {
+      require( !thresholdReached() && atNow() > date_ico_deadline, "too early" );
+      require( ethPending[_account] > 0 || ethContributed[_account] > 0, "nothing to return");
+      require( !refundClaimed[_account], "refund already claimed");      
+    }
   
     // return eth
-    uint eth_to_return = ethPending[msg.sender].add(ethContributed[msg.sender]);
+    uint eth_to_return = ethPending[_account].add(ethContributed[_account]);
     refundClaimed[_account] = true;
-    _account.transfer(eth_to_return);
+    if (eth_to_return > 0) _account.transfer(eth_to_return);
 
     // log
     emit RefundFailedIco(_account, eth_to_return);
-    
   }
 
+  //
+  // ERC20 functions ==========================================================
+  //
 
-  // ERC20 functions ------------------
+  /* Transfer out any accidentally sent ERC20 tokens */
+
+  function transferAnyERC20Token(address tokenAddress, uint amount) public onlyOwner returns (bool success) {
+      return ERC20Interface(tokenAddress).transfer(owner, amount);
+  }
 
   /* Override "transfer" */
 
