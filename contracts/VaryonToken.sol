@@ -73,7 +73,7 @@ contract Owned {
   }
 
   function acceptOwnership() public {
-    require(msg.sender == newOwner);
+    require( msg.sender == newOwner );
     emit OwnershipTransferred(owner, newOwner);
     owner = newOwner;
   }
@@ -239,68 +239,64 @@ contract VaryonToken is ERC20Token {
   
   uint public constant TOKENS_PER_ETH = 14750;
 
-  uint public constant TOKEN_TOTAL_SUPPLY = 1000000000 * E6;
-  uint public constant TOKEN_THRESHOLD    =   59000000 * E6; // ETH  4,000
-  uint public constant TOKEN_PRESALE_CAP  =   64900000 * E6; // ETH  4,400
-  uint public constant TOKEN_ICO_CAP      =  356950000 * E6; // ETH 24,200 
+  uint public constant TOKEN_TOTAL_SUPPLY = 1000000000 * E6; // VAR 1,000,000,000
+  uint public constant TOKEN_THRESHOLD    =   4000 * TOKENS_PER_ETH * E6; // ETH  4,000 = VAR  59,000,000
+  uint public constant TOKEN_PRESALE_CAP  =   4400 * TOKENS_PER_ETH * E6; // ETH  4,400 = VAR  64,000,000
+  uint public constant TOKEN_ICO_CAP      =  24200 * TOKENS_PER_ETH * E6; // ETH 24,200 = VAR 356,950,000
   
-  uint public constant MAX_BONUS_TOKENS   =    9735000 * E6; // 15% of 64.9mm
+  uint public constant BONUS = 15;
   
-  uint public BONUS = 15;
+  uint public constant MAX_BONUS_TOKENS = TOKEN_PRESALE_CAP * BONUS / 100; // 9,735,000 tokens
   
   /* Crowdsale parameters : minimum purchase amounts expressed in tokens */    
   
-  uint public constant MIN_PURCHASE_PRESALE = 590000 * E6; // ETH 40
-  uint public constant MIN_PURCHASE_MAIN    =  14750 * E6; // ETH  1
+  uint public constant MIN_PURCHASE_PRESALE = 40 * TOKENS_PER_ETH * E6; // ETH 40 = VAR 590,000
+  uint public constant MIN_PURCHASE_MAIN    =  1 * TOKENS_PER_ETH * E6; // ETH  1 = VAR  14,750
 
   /* Crowdsale parameters : minimum contribution in ether */
 
-  uint public constant MINIMUM_ETH_CONTRIBUTION  = 1 ether / 100; // 0.01 ether
+  uint public constant MINIMUM_ETH_CONTRIBUTION  = 0.01 ether;
   
-  /* Keep track of tokens */
+  /* Tokens from off-chain contributions (no eth returns for these tokens) */
   
-    /* tokens from off-chain contributions (no eth returns for these tokens) */
+  mapping(address => uint) public balancesOffline;
   
-    mapping(address => uint) public balancesOffline;
+  /* Tokens - pending */
   
-    /* tokens - pending */
-  
-    mapping(address => uint) public balancesPending;
+  mapping(address => uint) public balancesPending;
 
-    uint public tokensIcoPending  = 0;
+  uint public tokensIcoPending  = 0;
 
-    /* tokens - issued */
+  /* Tokens - issued */
 
-    // mapping(address => uint) balances; // in ERC20Token
+  // mapping(address => uint) balances; // in ERC20Token
     
-    // uint public tokensIssuedTotal = 0; // in ERC20Token
-    // tokensIssuedTotal = tokensIcoIssued + tokensIcoBonus + tokensMinted 
+  // uint public tokensIssuedTotal = 0; // in ERC20Token
+  // tokensIssuedTotal = tokensIcoIssued + tokensIcoBonus + tokensMinted 
     
-    uint public tokensIcoIssued  = 0; // = tokensIcoCrowd + tokensIcoOffline 
-    uint public tokensIcoCrowd   = 0;
-    uint public tokensIcoOffline = 0;
-    uint public tokensIcoBonus   = 0;
-    uint public tokensMinted     = 0;
+  uint public tokensIcoIssued  = 0; // = tokensIcoCrowd + tokensIcoOffline 
+  uint public tokensIcoCrowd   = 0;
+  uint public tokensIcoOffline = 0;
+  uint public tokensIcoBonus   = 0;
+  uint public tokensMinted     = 0;
     
-    mapping(address => uint) public balancesBonus;
+  mapping(address => uint) public balancesBonus;
   
-  /* Keep track of ether received */
-  
-    /* ether - tokens pending */
+  /* Ether - tokens pending */
     
-    mapping(address => uint) public ethPending;
-    uint public totalEthPending  = 0;
+  mapping(address => uint) public ethPending;
+  uint public totalEthPending  = 0;
 
-    /* ether - tokens issued */
+  /* Ether - tokens issued */
 
-    mapping(address => uint) public ethContributed;
-    uint public totalEthContributed = 0;
+  mapping(address => uint) public ethContributed;
+  uint public totalEthContributed = 0;
   
-  /* keep track of refunds in case of failed ICO */
+  /* Keep track of refunds in case of failed ICO */
   
   mapping(address => bool) public refundClaimed;
   
-  /* whitelist and blacklist */
+  /* Whitelist and blacklist */
 
   mapping(address => bool) public whitelist;
   mapping(address => uint) public whitelistLimit;
@@ -328,30 +324,24 @@ contract VaryonToken is ERC20Token {
   event IcoDateUpdated(uint8 id, uint unixts);
   event Whitelisted(address indexed account, uint limit, uint threshold, uint term);
   event Blacklisted(address indexed account);
-
   event TokensMinted(address indexed account, uint tokens, uint term);
-  
   event RegisterPending(address indexed account, uint tokens, uint ethContributed, uint ethReturned);
   event WhitelistingEvent(address indexed account, uint tokens, uint tokensBonus, uint tokensReturned, uint ethContributed, uint ethReturned);
-  event RegisterContribution(address indexed _account, uint _tokens, uint _tokens_bonus, uint _ethContributed, uint _ethReturned);
-  
+  event RegisterContribution(address indexed account, uint tokens, uint tokens_bonus, uint ethContributed, uint ethReturned);
   event OfflinePending(address indexed _account, uint _tokens);
-  
-  // event Returned(address indexed _account, uint _tokens);
+  event RegisterOfflineContribution(address indexed account, uint tokens, uint tokens_bonus);  
   event RefundBlacklistedTokens(address indexed account, uint tokens);
   event RefundBlacklistedEth(address indexed account, uint eth);
   event RefundFailedIco(address indexed account, uint ethReturned);
   event ReturnedPending(address indexed account, uint tokensCancelled, uint ethReturned, uint tokensIcoPending, uint totalEthPending);
-
   event IcoLockChanged(address indexed account, uint oldTerm, uint newTerm);
-  event TransferLocked(address indexed _from, address indexed _to, uint tokens, uint term);
+  event TransferLocked(address indexed from, address indexed to, uint tokens, uint term);
 
   // Basic Functions ------------------
 
   /* Initialize */
 
   constructor() public {
-
     // check dates
     require( atNow()           < date_ico_presale );
     require( date_ico_presale  < date_ico_main );
@@ -359,9 +349,6 @@ contract VaryonToken is ERC20Token {
     require( date_ico_end      < date_ico_deadline );
     require( date_ico_deadline < DATE_LIMIT );
 
-    // check MAX_BONUS_TOKENS
-    require( TOKEN_PRESALE_CAP.mul(BONUS) / 100 == MAX_BONUS_TOKENS );
-    
     // set owner wallet
     wallet = owner;
   }
@@ -427,13 +414,13 @@ contract VaryonToken is ERC20Token {
   
   /* Convert ether to tokens */
 
-  function ethToTokens(uint _eth) private pure returns (uint tokens) {
+  function ethToTokens(uint _eth) public pure returns (uint tokens) {
     tokens = _eth.mul(TOKENS_PER_ETH).mul(E6) / 1 ether;
   }
   
   /* Convert tokens to ether */
   
-  function tokensToEth(uint _tokens) private pure returns (uint eth) {
+  function tokensToEth(uint _tokens) public pure returns (uint eth) {
     eth = _tokens.mul(1 ether) / TOKENS_PER_ETH.mul(E6);
   }
   
@@ -451,7 +438,6 @@ contract VaryonToken is ERC20Token {
   /* Register locked tokens (we do not use slot 0, which is reserved for the ICO)  */
   
   function registerLockedTokens(address _account, uint _tokens, uint _term) private returns (uint idx) {
-    
     // the term must be in the future
     require( _term > atNow(), "lock term must be in the future" ); 
 
@@ -477,7 +463,6 @@ contract VaryonToken is ERC20Token {
     // register locked tokens
     if (term[idx] == 0) term[idx] = _term;
     amnt[idx] = amnt[idx].add(_tokens);
-    
   }
 
   /* Unlocked tokens in an account */
@@ -753,8 +738,20 @@ contract VaryonToken is ERC20Token {
   }
   
   function offlineTokensWhitelist(address _account, uint _tokens) private {
-    // todo
-    // may trigger some refactoring
+
+    // adjust based on limit and threshold, update total offline contributions
+    uint tokens;
+    uint tokens_bonus;
+    (tokens, tokens_bonus) = processTokenIssue(_account, _tokens);
+    balancesOffline[_account] = balancesOffline[_account].add(tokens);
+    tokensIcoOffline          = tokensIcoOffline.add(tokens);
+
+    // throw if no tokens can be issued
+    require( tokens > 0, "no tokens can be issued" );
+    
+    // log
+    emit Transfer(0x0, _account, tokens.add(tokens_bonus));
+    emit RegisterOfflineContribution(_account, tokens, tokens_bonus);  
   }
 
   function offlineTokensPending(address _account, uint _tokens) private {
@@ -827,85 +824,21 @@ contract VaryonToken is ERC20Token {
 
   function buyTokensWhitelist() private {
 
-    //
-    // --- preliminaries  
-    //
-  
     // the maximum number of tokens is a function of ether sent
     // the actual maximum depends on tokens available
     uint tokens_max = ethToTokens(msg.value);
     uint tokens = tokens_max;
-    uint available;
+    uint tokens_bonus;
     
     if ( tokens_max > tokensAvailableIco() ) tokens = tokensAvailableIco();
 
-    // next we check limits and thresholds
-    uint balance = balances[msg.sender];
-    uint balance_exp = balance.add(tokens);
-   
-    uint limit = whitelistLimit[msg.sender];
-    uint threshold = whitelistThreshold[msg.sender];
-    
-    if ( limit == 0 && threshold == 0) {
-      // nothing to adjust
-    }
-    else if (limit > 0 && threshold == 0) {
-      if (balance >= limit) {
-        // no contribution possible
-        tokens = 0;
-      } else {
-        // adjust if necessary
-        available = limit - balance;
-        if (tokens < available) tokens = available;
-      }      
-    }
-    else if (limit == 0 && threshold > 0) {
-      // not possible if ending balance is below the threshold
-      if (balance_exp < threshold) tokens = 0;
-    }
-    else if (limit > 0 && threshold > 0) {
-      if (balance_exp >= threshold) {
-        // nothing to adjust
-      }
-      else {
-        if (balance >= limit) {
-          // no contribution if balance >= limit
-          tokens = 0;
-        } else {
-          // adjust is necessary
-          available = limit - balance;
-          if (tokens < available) tokens = available;
-        }
-      }
-    }
-    
-    // throw if no tokens can be allocated
-    require( tokens > 0, "no tokens can be issued" );
-    
-    // check minimum purchase amount
-    require( balances[msg.sender].add(tokens) >= minumumInvestment(), "minimum purchase amount" );
-
-    //
-    // --- process contribution  
-    //
-
-    // add bonus tokens, if any
-    uint tokens_bonus = getBonus(tokens);
-    uint tokens_issued = tokens.add(tokens_bonus);
-    
-    // balances    
-    balances[msg.sender] = balances[msg.sender].add(tokens_issued);
-    balancesBonus[msg.sender] = balancesBonus[msg.sender].add(tokens_bonus);
-    tokensIssuedTotal = tokensIssuedTotal.add(tokens_issued);
-    tokensIcoIssued = tokensIcoIssued.add(tokens);
+    // adjust based on limit and threshold, update total crowd contribution
+    (tokens, tokens_bonus) = processTokenIssue(msg.sender, tokens);
     tokensIcoCrowd = tokensIcoCrowd.add(tokens);
-    tokensIcoBonus = tokensIcoBonus.add(tokens_bonus);
-
-    // add token locking if necessary
-    if (threshold > 0 && balances[msg.sender] >= threshold) {
-      lockTerm[msg.sender][0] = whitelistLockDate[msg.sender];
-      lockAmnt[msg.sender][0] = balances[msg.sender];
-    }
+    
+    // throw if no tokens can be allocated, or if below min purchase amount
+    require( tokens > 0, "no tokens can be issued" );
+    require( balances[msg.sender].add(tokens) >= minumumInvestment(), "minimum purchase amount" );
 
     // register eth contribution and return any unused ether if necessary
     uint eth_contributed = msg.value;
@@ -925,23 +858,20 @@ contract VaryonToken is ERC20Token {
     }
     
     // log
-    emit Transfer(0x0, msg.sender, tokens_issued);
+    emit Transfer(0x0, msg.sender, tokens.add(tokens_bonus));
     emit RegisterContribution(msg.sender, tokens, tokens_bonus, eth_contributed, eth_returned);
-  
   }
 
   /* whitelisting of an address */
   
   function processWhitelisting(address _account) private {
     
-    //
-    // to process as contributions
-    //
+    // to process as contributions:
     uint tokens;
+    uint tokens_bonus;
     uint eth_to_contribute;
-    //
-    // to return
-    //
+
+    // to return:
     uint tokens_to_return;
     uint eth_to_return;
     
@@ -951,72 +881,25 @@ contract VaryonToken is ERC20Token {
     tokens = tokens_max;
     if ( tokens_max > tokensAvailableIco() ) tokens = tokensAvailableIco();
 
-    // next we check limits and thresholds
-    //
-    // (making this as explicit as possible)
-    //
-    uint limit = whitelistLimit[_account];
-    uint threshold = whitelistThreshold[_account];    
-
-    if (limit == 0 && threshold == 0) {
-      // ok
-    } else if (limit > 0 && threshold == 0) {
-      // we can only go up to limit
-      if (tokens > limit) tokens = limit;
-    } else if (limit == 0 && threshold > 0) {
-      // we must be at or above the threshold
-      if (tokens < threshold) tokens = 0;
-    } else if (limit > 0 && threshold > 0) {
-      // either below limit or above threshold
-      if (tokens >= threshold) {
-        // ok
-      } else if (tokens > limit) {
-        // reduce
-        tokens = limit;
-      } else if (tokens <= limit) {
-        // ok
-      }
-    }
+    // adjust based on limit and threshold, update total crowd contribution
+    (tokens, tokens_bonus) = processTokenIssue(_account, tokens);
+    tokensIcoCrowd = tokensIcoCrowd.add(tokens);
       
     // tokens to return
     tokens_to_return = tokens_max - tokens;
     
-    // ether to return (not "offline" portion)
-    //
-    // !!!! exact accounting as to what to return offline is not done here
-    //
+    // ether to return (there may be an "offline" portion)
     if (tokens_to_return > 0) {
       eth_to_return = tokensToEth(tokens_to_return);
       if (eth_to_return > ethPending[_account]) eth_to_return = ethPending[_account];
     }
     eth_to_contribute = ethPending[_account] - eth_to_return;
 
-    // add bonus tokens, if any
-    uint tokens_bonus = getBonus(tokens);
-    uint tokens_issued = tokens.add(tokens_bonus);
-
-    //
-    // so now we know what to do
-    //
-    
     // process tokens pending
     balancesPending[_account] = 0;
     tokensIcoPending = tokensIcoPending.sub(tokens);
 
-    // process tokens issued
-    balances[_account] = tokens_issued;
-    balancesBonus[_account] = tokens_bonus;
-    tokensIssuedTotal = tokensIssuedTotal.add(tokens_issued);
-    tokensIcoIssued = tokensIcoIssued.add(tokens);
-    tokensIcoCrowd = tokensIcoCrowd.add(tokens);
-    tokensIcoBonus = tokensIcoBonus.add(tokens_bonus);
-    
-    //token locking
-    if(tokens_issued > threshold) {
-      lockTerm[_account][0] = whitelistLockDate[_account];
-      lockAmnt[_account][0] = balances[_account];
-    }
-
+ 
     // process eth pending
     totalEthPending = totalEthPending.sub(ethPending[_account]);
     ethPending[_account] = 0;
@@ -1035,10 +918,78 @@ contract VaryonToken is ERC20Token {
     }
     
     // log
-    emit Transfer(0x0, _account, tokens_issued);
-    emit WhitelistingEvent(_account, tokens_issued, tokens_bonus, tokens_to_return, eth_to_contribute, eth_to_return);
+    emit Transfer(0x0, _account, tokens.add(tokens_bonus));
+    emit WhitelistingEvent(_account, tokens, tokens_bonus, tokens_to_return, eth_to_contribute, eth_to_return);
 
   }
+  
+  /* Adjust tokens that can be issued, based on limit and threshold, and update balances */
+  
+  function processTokenIssue(address _account, uint _tokens_to_add) private returns (uint tokens, uint tokens_bonus) {
+
+    tokens = _tokens_to_add;
+    uint balance = balances[msg.sender]; // will be 0 unless whitelisted & contributed
+    uint balance_exp = balance.add(tokens);
+    uint limit = whitelistLimit[_account];
+    uint threshold = whitelistThreshold[_account];
+    uint available;
+    
+    // adjust tokens amount if necessary
+
+    if ( limit == 0 && threshold == 0) {
+      // nothing to adjust
+    }
+    else if (limit > 0 && threshold == 0) {
+      if (balance >= limit) {
+        // no contribution possible
+        tokens = 0;
+      } else {
+        // reduce tokens if necessary
+        available = limit - balance;
+        if (tokens > available) tokens = available;
+      }      
+    }
+    else if (limit == 0 && threshold > 0) {
+      // not possible if ending balance is below the threshold
+      if (balance_exp < threshold) tokens = 0;
+    }
+    else if (limit > 0 && threshold > 0) {
+      if (balance_exp >= threshold) {
+        // nothing to adjust
+      }
+      else {
+        if (balance >= limit) {
+          // no contribution possible
+          tokens = 0;
+        } else {
+          // reduce tokens if necessary
+          available = limit - balance;
+          if (tokens < available) tokens = available;
+        }
+      }
+    }
+    
+    // update balances and lock tokens if necessary
+    
+    if (tokens > 0) {
+      // bonus tokens
+      tokens_bonus = getBonus(tokens);
+      uint tokens_issued = tokens.add(tokens_bonus);
+      
+      // update balances and totals
+      balances[_account]        = balances[_account].add(tokens_issued);
+      balancesBonus[_account]   = balancesBonus[_account].add(tokens_bonus);
+      tokensIssuedTotal         = tokensIssuedTotal.add(tokens_issued);
+      tokensIcoIssued           = tokensIcoIssued.add(tokens);
+      tokensIcoBonus            = tokensIcoBonus.add(tokens_bonus);
+
+      // token locking
+      if (threshold > 0 && balances[_account] >= threshold) {
+        lockTerm[_account][0] = whitelistLockDate[_account];
+        lockAmnt[_account][0] = balances[_account];
+      }      
+    }  
+  }  
   
   //
   // Cancel or Reclaim pending contributions ==================================
