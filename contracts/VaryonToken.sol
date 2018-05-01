@@ -1114,9 +1114,10 @@ contract VaryonToken is ERC20Token {
     require( _unixts > atNow(), "date must be in the future");
     require( _unixts < atNow() + MAX_LOCKING_PERIOD, "locking limited to 730 days");
     require( isAvailableLockSlot(_to, _unixts), "no locking slot available");
-    return super.transfer(_to, _amount);
+    super.transfer(_to, _amount);
     registerLockedTokens(_to, _amount, _unixts);
     emit TransferLocked(msg.sender, _to, _amount, _unixts);
+    return true;
   }  
   
   // Bulk token transfer function -----
