@@ -311,8 +311,8 @@ contract VaryonToken is ERC20Token {
   
   uint8 public constant LOCK_SLOTS = 6;
   
-  mapping(address => uint[6]) public lockTerm;
-  mapping(address => uint[6]) public lockAmnt;
+  mapping(address => uint[LOCK_SLOTS]) public lockTerm;
+  mapping(address => uint[LOCK_SLOTS]) public lockAmnt;
   
   /* Other parameters */
 
@@ -446,8 +446,8 @@ contract VaryonToken is ERC20Token {
     // we use either the existing slot with the exact same term,
     // of which there can be at most one, or the first empty slot
     idx = 9999;  
-    uint[6] storage term = lockTerm[_account];
-    uint[6] storage amnt = lockAmnt[_account];
+    uint[LOCK_SLOTS] storage term = lockTerm[_account];
+    uint[LOCK_SLOTS] storage amnt = lockAmnt[_account];
     for (uint i = 1; i < LOCK_SLOTS; i++) {
       if (term[i] <= atNow()) {
         term[i] = 0;
@@ -469,8 +469,8 @@ contract VaryonToken is ERC20Token {
   
   function unlockedTokens(address _account) public view returns (uint _unlockedTokens) {
     uint locked_tokens = 0;
-    uint[6] storage term = lockTerm[_account];
-    uint[6] storage amnt = lockAmnt[_account];
+    uint[LOCK_SLOTS] storage term = lockTerm[_account];
+    uint[LOCK_SLOTS] storage amnt = lockAmnt[_account];
     for (uint i = 0; i < LOCK_SLOTS; i++) {
       if (term[i] > atNow()) locked_tokens = locked_tokens.add(amnt[i]);
     }
@@ -484,7 +484,7 @@ contract VaryonToken is ERC20Token {
     // true if locking term has already passed
     if (_term < atNow()) return true;
     // case of term in the future
-    uint[6] storage term = lockTerm[_account];
+    uint[LOCK_SLOTS] storage term = lockTerm[_account];
     for (uint i = 1; i < LOCK_SLOTS; i++) {
       if (term[i] < atNow() || term[i] == _term) return true;
     }
@@ -854,7 +854,7 @@ contract VaryonToken is ERC20Token {
     // send ether to wallet if soft cap reached
     address thisAddress = this;
     if ( thresholdReached() && thisAddress.balance > totalEthPending ) {
-      wallet.transfer(thisAddress.balance - totalEthPending);
+      wallet.transfer(thisAddress.balance.sub(totalEthPending));
     }
     
     // log
@@ -886,14 +886,14 @@ contract VaryonToken is ERC20Token {
     tokensIcoCrowd = tokensIcoCrowd.add(tokens);
       
     // tokens to return
-    tokens_to_return = tokens_max - tokens;
+    tokens_to_return = tokens_max.sub(tokens);
     
     // ether to return (there may be an "offline" portion)
     if (tokens_to_return > 0) {
       eth_to_return = tokensToEth(tokens_to_return);
       if (eth_to_return > ethPending[_account]) eth_to_return = ethPending[_account];
     }
-    eth_to_contribute = ethPending[_account] - eth_to_return;
+    eth_to_contribute = ethPending[_account].sub(eth_to_return);
 
     // process tokens pending
     balancesPending[_account] = 0;
@@ -914,7 +914,7 @@ contract VaryonToken is ERC20Token {
     // send ether to wallet if soft cap reached
     address thisAddress = this;
     if ( thresholdReached() && thisAddress.balance > totalEthPending ) {
-      wallet.transfer(thisAddress.balance - totalEthPending);
+      wallet.transfer(thisAddress.balance.sub(totalEthPending));
     }
     
     // log
@@ -945,7 +945,7 @@ contract VaryonToken is ERC20Token {
         tokens = 0;
       } else {
         // reduce tokens if necessary
-        available = limit - balance;
+        available = limit.sub(balance);
         if (tokens > available) tokens = available;
       }      
     }
@@ -963,7 +963,7 @@ contract VaryonToken is ERC20Token {
           tokens = 0;
         } else {
           // reduce tokens if necessary
-          available = limit - balance;
+          available = limit.sub(balance);
           if (tokens < available) tokens = available;
         }
       }
@@ -1021,14 +1021,14 @@ contract VaryonToken is ERC20Token {
   
   function pRevertPending(address _account) private {
     // nothing to do if there are no pending tokens
-    if (balancesPending[_account] > 0) return;
+    if (balancesPending[_account] == 0) return;
       
     // tokens
     uint tokens_to_cancel = balancesPending[_account];
     balancesPending[_account] = 0;
     tokensIcoPending = tokensIcoPending.sub(tokens_to_cancel);
     
-    //eth)
+    //eth
     uint eth_to_return = ethPending[_account];
     ethPending[_account] = 0;
     totalEthPending = totalEthPending.sub(eth_to_return);
