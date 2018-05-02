@@ -824,12 +824,21 @@ contract VaryonToken is ERC20Token {
 
   function buyTokensWhitelist() private {
 
+    // to process as contributions:
+    uint tokens;
+    uint tokens_bonus;
+    uint eth_to_contribute;
+
+    // to return:
+    uint eth_to_return;
+    
+    // helper variable
+    uint tokens_max;
+  
     // the maximum number of tokens is a function of ether sent
     // the actual maximum depends on tokens available
-    uint tokens_max = ethToTokens(msg.value);
-    uint tokens = tokens_max;
-    uint tokens_bonus;
-    
+    tokens_max = ethToTokens(msg.value);
+    tokens = tokens_max;
     if ( tokens_max > tokensAvailableIco() ) tokens = tokensAvailableIco();
 
     // adjust based on limit and threshold, update total crowd contribution
@@ -841,25 +850,22 @@ contract VaryonToken is ERC20Token {
     require( balances[msg.sender].add(tokens) >= minumumInvestment(), "minimum purchase amount" );
 
     // register eth contribution and return any unused ether if necessary
-    uint eth_contributed = msg.value;
-    uint eth_returned = 0;
+    eth_to_contribute = msg.value;
+    eth_to_return = 0;
     if (tokens < tokens_max) {
-      eth_contributed = tokensToEth(tokens);
-      eth_returned = msg.value.sub(eth_contributed);
+      eth_to_contribute = tokensToEth(tokens);
+      eth_to_return = msg.value.sub(eth_to_contribute);
     }
-    ethContributed[msg.sender] = ethContributed[msg.sender].add(eth_contributed);
-    totalEthContributed = totalEthContributed.add(eth_contributed);
-    if (eth_returned > 0) msg.sender.transfer(eth_returned);
+    ethContributed[msg.sender] = ethContributed[msg.sender].add(eth_to_contribute);
+    totalEthContributed = totalEthContributed.add(eth_to_contribute);
+    if (eth_to_return > 0) msg.sender.transfer(eth_to_return);
 
-    // send ether to wallet if soft cap reached
-    address thisAddress = this;
-    if ( thresholdReached() && thisAddress.balance > totalEthPending ) {
-      wallet.transfer(thisAddress.balance.sub(totalEthPending));
-    }
+    // send ether to wallet if threshold reached
+    sendEtherToWallet();
     
     // log
     emit Transfer(0x0, msg.sender, tokens.add(tokens_bonus));
-    emit RegisterContribution(msg.sender, tokens, tokens_bonus, eth_contributed, eth_returned);
+    emit RegisterContribution(msg.sender, tokens, tokens_bonus, eth_to_contribute, eth_to_return);
   }
 
   /* whitelisting of an address */
@@ -875,9 +881,12 @@ contract VaryonToken is ERC20Token {
     uint tokens_to_return;
     uint eth_to_return;
     
+    // helper variable
+    uint tokens_max;
+    
     // the maximum number of tokens is a function of ether sent
     // the actual maximum depends on tokens available
-    uint tokens_max = balancesPending[_account];
+    tokens_max = balancesPending[_account];
     tokens = tokens_max;
     if ( tokens_max > tokensAvailableIco() ) tokens = tokensAvailableIco();
 
@@ -898,7 +907,6 @@ contract VaryonToken is ERC20Token {
     // process tokens pending
     balancesPending[_account] = 0;
     tokensIcoPending = tokensIcoPending.sub(tokens);
-
  
     // process eth pending
     totalEthPending = totalEthPending.sub(ethPending[_account]);
@@ -911,16 +919,22 @@ contract VaryonToken is ERC20Token {
     // return any unused ether
     if (eth_to_return > 0) _account.transfer(eth_to_return);
 
-    // send ether to wallet if soft cap reached
-    address thisAddress = this;
-    if ( thresholdReached() && thisAddress.balance > totalEthPending ) {
-      wallet.transfer(thisAddress.balance.sub(totalEthPending));
-    }
-    
+    // send ether to wallet if threshold reached
+    sendEtherToWallet();
+  
     // log
     emit Transfer(0x0, _account, tokens.add(tokens_bonus));
     emit WhitelistingEvent(_account, tokens, tokens_bonus, tokens_to_return, eth_to_contribute, eth_to_return);
 
+  }
+  
+  /* Send ether to wallet if threshold reached */
+  
+  function sendEtherToWallet() private {
+    address thisAddress = this;
+    if ( thresholdReached() && thisAddress.balance > totalEthPending ) {
+      wallet.transfer(thisAddress.balance.sub(totalEthPending));
+    }
   }
   
   /* Adjust tokens that can be issued, based on limit and threshold, and update balances */
