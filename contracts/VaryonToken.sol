@@ -316,7 +316,7 @@ contract VaryonToken is ERC20Token {
   
   /* Other parameters */
 
-  uint public constant MAX_LOCKING_PERIOD = 365*2*24*3600; // approximately 2 years
+  uint public constant MAX_LOCKING_PERIOD = 1827*24*3600; // max 5 years
 
   // Events ---------------------------
   
