@@ -316,7 +316,7 @@ contract VaryonToken is ERC20Token {
   
   /* Other parameters */
 
-  uint public constant MAX_LOCKING_PERIOD = 1827*24*3600; // max 5 years
+  uint public constant MAX_LOCKING_PERIOD = 1827 days; // max 5 years
 
   // Events ---------------------------
   
@@ -407,7 +407,7 @@ contract VaryonToken is ERC20Token {
   
   /* Minimum number of tokens per contributor */
 
-  function minumumInvestment() private view returns (uint) {
+  function minimumInvestment() private view returns (uint) {
     if (atNow() <= date_ico_main) return MIN_PURCHASE_PRESALE;
     return MIN_PURCHASE_MAIN;
   }
@@ -797,7 +797,7 @@ contract VaryonToken is ERC20Token {
     
     // check minimum purchase amount
     uint tokens_total = balancesPending[msg.sender].add(tokens);
-    require( tokens_total >= minumumInvestment(), "minimum purchase amount" );
+    require( tokens_total >= minimumInvestment(), "minimum purchase amount" );
 
     // eth returned, if any
     uint eth_contributed = msg.value;
@@ -847,7 +847,7 @@ contract VaryonToken is ERC20Token {
     
     // throw if no tokens can be allocated, or if below min purchase amount
     require( tokens > 0, "no tokens can be issued" );
-    require( balances[msg.sender].add(tokens) >= minumumInvestment(), "minimum purchase amount" );
+    require( balances[msg.sender].sub(balancesBonus[msg.sender]) >= minimumInvestment(), "minimum purchase amount" );
 
     // register eth contribution and return any unused ether if necessary
     eth_to_contribute = msg.value;
@@ -978,7 +978,7 @@ contract VaryonToken is ERC20Token {
         } else {
           // reduce tokens if necessary
           available = limit.sub(balance);
-          if (tokens < available) tokens = available;
+          if (tokens > available) tokens = available;
         }
       }
     }
