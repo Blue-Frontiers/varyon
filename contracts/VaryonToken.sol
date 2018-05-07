@@ -237,7 +237,7 @@ contract VaryonToken is ERC20Token {
 
   /* Crowdsale parameters : token price, supply, caps and bonus */  
   
-  uint public constant TOKENS_PER_ETH = 14750;
+  uint public constant TOKENS_PER_ETH = 10000; // test value, will be reset to 14750 before deployment
 
   uint public constant TOKEN_TOTAL_SUPPLY = 1000000000 * E6; // VAR 1,000,000,000
   uint public constant TOKEN_THRESHOLD    =   4000 * TOKENS_PER_ETH * E6; // ETH  4,000 = VAR  59,000,000
@@ -393,11 +393,12 @@ contract VaryonToken is ERC20Token {
     } else {
       available = TOKEN_TOTAL_SUPPLY.sub(tokensIssuedTotal);
     }
+    available = available.sub(tokensMinted);
   }
   
   /* Currently available tokens for sale */
 
-  function tokensAvailableIco() private view returns (uint) {
+  function tokensAvailableIco() public view returns (uint) {
     if (atNow() <= date_ico_main) {
       return TOKEN_PRESALE_CAP.sub(tokensIcoIssued).sub(tokensIcoPending);
     } else {
@@ -635,6 +636,23 @@ contract VaryonToken is ERC20Token {
       }
     }
   }
+
+  //
+  // Modify lock date of whitelisted address ----------------------------------
+  //
+
+  function modifyIcoLock(address _account, uint _unixts) public onlyAdmin {
+    // checks
+    require( lockTerm[_account][0] > atNow(), "the ICO tokens are already unlocked");
+    require( _unixts < lockTerm[_account][0], "locking period can only be shortened");
+    
+    // modify term
+    uint term = lockTerm[_account][0];
+    lockTerm[_account][0] = _unixts;
+    
+    // log
+    emit IcoLockChanged(_account, term, _unixts);
+  }
   
   //
   // Minting of tokens by owner -----------------------------------------------
@@ -705,27 +723,12 @@ contract VaryonToken is ERC20Token {
     emit TokensMinted(_account, _tokens, _term);
   }
 
-  /* Change lock date of ICO tokens */
-
-  function modifyIcoLock(address _account, uint _unixts) public onlyAdmin {
-    // checks
-    require( lockAmnt[_account][0] > 0,       "no ICO tokens for this account");
-    require( lockTerm[_account][0] > atNow(), "the ICO tokens are already unlocked");
-    require( _unixts < lockTerm[_account][0], "locking period can only be shortened");
-    
-    // modify term
-    uint term = lockTerm[_account][0];
-    lockTerm[_account][0] = _unixts;
-    
-    // log
-    emit IcoLockChanged(_account, term, _unixts);
-  }
-
   //
   // Processing Offline contributions =============================================
   //
   
   function offlineContribution(address _account, uint _tokens) public onlyAdmin {
+    require( !blacklist[_account] );
     require( atNow() < date_ico_end );
     require( _tokens <= tokensAvailableIco() );
 
@@ -906,7 +909,7 @@ contract VaryonToken is ERC20Token {
 
     // process tokens pending
     balancesPending[_account] = 0;
-    tokensIcoPending = tokensIcoPending.sub(tokens);
+    tokensIcoPending = tokensIcoPending.sub(tokens_max);
  
     // process eth pending
     totalEthPending = totalEthPending.sub(ethPending[_account]);
@@ -942,7 +945,7 @@ contract VaryonToken is ERC20Token {
   function processTokenIssue(address _account, uint _tokens_to_add) private returns (uint tokens, uint tokens_bonus) {
 
     tokens = _tokens_to_add;
-    uint balance = balances[msg.sender]; // will be 0 unless whitelisted & contributed
+    uint balance = balances[msg.sender].sub(balancesBonus[msg.sender]);
     uint balance_exp = balance.add(tokens);
     uint limit = whitelistLimit[_account];
     uint threshold = whitelistThreshold[_account];
@@ -1057,32 +1060,26 @@ contract VaryonToken is ERC20Token {
   //
 
   function reclaimEth() public {
-    pReclaimEth(msg.sender, false);
+    pReclaimEth(msg.sender);
   }
 
   function reclaimEthAdmin(address _account) public onlyAdmin {
-    pReclaimEth(_account, false);
+    pReclaimEth(_account);
   }
   
   function reclaimEthAdminMultiple(address[] _accounts) public onlyAdmin {
     for (uint i = 0; i < _accounts.length; i++) {
-      pReclaimEth(_accounts[i], true);
+      pReclaimEth(_accounts[i]);
     }
   }
   
   /* private reclaim function - note  we do not modify any balances */
   
-  function pReclaimEth(address _account, bool _silent) private {
+  function pReclaimEth(address _account) private {
     // conditions
-    if (_silent) {
-      if ( thresholdReached() || atNow() <= date_ico_deadline ) return;
-      if ( ethPending[_account] == 0 && ethContributed[_account] == 0 ) return;
-      if ( refundClaimed[_account] ) return;
-    } else {
-      require( !thresholdReached() && atNow() > date_ico_deadline, "too early" );
-      require( ethPending[_account] > 0 || ethContributed[_account] > 0, "nothing to return");
-      require( !refundClaimed[_account], "refund already claimed");      
-    }
+    require( !thresholdReached() && atNow() > date_ico_deadline, "too early" );
+    require( ethPending[_account] > 0 || ethContributed[_account] > 0, "nothing to return");
+    require( !refundClaimed[_account], "refund already claimed");
   
     // return eth
     uint eth_to_return = ethPending[_account].add(ethContributed[_account]);
@@ -1107,7 +1104,7 @@ contract VaryonToken is ERC20Token {
 
   function transfer(address _to, uint _amount) public returns (bool success) {
     require( tradeable() );
-    require( unlockedTokens(msg.sender) >= _amount );
+    require( _amount <= unlockedTokens(msg.sender) );
     return super.transfer(_to, _amount);
   }
   
@@ -1115,33 +1112,16 @@ contract VaryonToken is ERC20Token {
 
   function transferFrom(address _from, address _to, uint _amount) public returns (bool success) {
     require( tradeable() );
-    require( unlockedTokens(_from) >= _amount ); 
+    require( _amount <= unlockedTokens(_from) ); 
     return super.transferFrom(_from, _to, _amount);
   }
-
-  // Locked token transfers
-
-  /* Locked token transfer function */
-  function transferLocked(address _to, uint _amount, uint _unixts) public returns (bool success) {
-    require( tradeable(), "not tradeable" );
-    require( unlockedTokens(msg.sender) >= _amount, "not enough unlocked tokens" );
-    require( _unixts > atNow(), "date must be in the future");
-    require( _unixts < atNow() + MAX_LOCKING_PERIOD, "locking limited to 730 days");
-    require( isAvailableLockSlot(_to, _unixts), "no locking slot available");
-    super.transfer(_to, _amount);
-    registerLockedTokens(_to, _amount, _unixts);
-    emit TransferLocked(msg.sender, _to, _amount, _unixts);
-    return true;
-  }  
-  
-  // Bulk token transfer function -----
 
   /* Multiple token transfers from one address to save gas */
 
   function transferMultiple(address[] _addresses, uint[] _amounts) external {
     require( tradeable() );
-    require( _addresses.length == _amounts.length );
     require( _addresses.length <= 100 );
+    require( _addresses.length == _amounts.length );
     
     // check token amounts
     uint tokens_to_transfer = 0;
