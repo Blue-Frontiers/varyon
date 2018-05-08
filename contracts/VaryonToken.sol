@@ -387,13 +387,12 @@ contract VaryonToken is ERC20Token {
   
   function availableToMint() public view returns (uint available) {
     if (atNow() <= date_ico_end) {
-      available = TOKEN_TOTAL_SUPPLY.sub(TOKEN_ICO_CAP).sub(MAX_BONUS_TOKENS);
+      available = TOKEN_TOTAL_SUPPLY.sub(TOKEN_ICO_CAP).sub(MAX_BONUS_TOKENS).sub(tokensMinted);
     } else if (atNow() <= date_ico_deadline) {
       available = TOKEN_TOTAL_SUPPLY.sub(tokensIssuedTotal).sub(tokensIcoPending);
     } else {
       available = TOKEN_TOTAL_SUPPLY.sub(tokensIssuedTotal);
     }
-    available = available.sub(tokensMinted);
   }
   
   /* Currently available tokens for sale */
