@@ -330,8 +330,6 @@ contract VaryonToken is ERC20Token {
   event RegisterContribution(address indexed account, uint tokens, uint tokens_bonus, uint ethContributed, uint ethReturned);
   event OfflinePending(address indexed _account, uint _tokens);
   event RegisterOfflineContribution(address indexed account, uint tokens, uint tokens_bonus);  
-  event RefundBlacklistedTokens(address indexed account, uint tokens);
-  event RefundBlacklistedEth(address indexed account, uint eth);
   event RefundFailedIco(address indexed account, uint ethReturned);
   event ReturnedPending(address indexed account, uint tokensCancelled, uint ethReturned, uint tokensIcoPending, uint totalEthPending);
   event IcoLockChanged(address indexed account, uint oldTerm, uint newTerm);
@@ -617,23 +615,7 @@ contract VaryonToken is ERC20Token {
     emit Blacklisted(_account);
 
     // reverse contributions, if any
-    if (balancesPending[_account] > 0) {
-    
-      // tokens
-      uint tokens = balancesPending[_account];
-      tokensIcoPending = tokensIcoPending.sub(tokens);
-      balancesPending[_account] = 0;
-      emit RefundBlacklistedTokens(_account, tokens);
-
-      // ether
-      uint eth = ethPending[_account];
-      if (eth > 0) {
-        totalEthPending = totalEthPending.sub(eth);
-        ethPending[_account] = 0;
-        _account.transfer(eth);
-        emit RefundBlacklistedEth(_account, eth);
-      }
-    }
+    pRevertPending(_account);
   }
 
   //
