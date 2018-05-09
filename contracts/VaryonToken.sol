@@ -63,14 +63,11 @@ contract Owned {
 
   mapping(address => bool) public isAdmin;
   
-  address public wallet;
-
   // Events ---------------------------
 
   event OwnershipTransferProposed(address indexed _from, address indexed _to);
   event OwnershipTransferred(address indexed _from, address indexed _to);
   event AdminChange(address indexed _admin, bool _status);
-  event WalletUpdated(address newWallet);
 
   // Modifiers ------------------------
 
@@ -81,7 +78,6 @@ contract Owned {
 
   constructor() public {
     owner = msg.sender;
-    wallet = owner;
     isAdmin[owner] = true;
   }
 
@@ -107,6 +103,29 @@ contract Owned {
     require( isAdmin[_a] == true );
     isAdmin[_a] = false;
     emit AdminChange(_a, false);
+  }
+  
+}
+
+
+// ----------------------------------------------------------------------------
+//
+// Wallet
+//
+// ----------------------------------------------------------------------------
+
+contract Wallet is Owned {
+  
+  address public wallet;
+
+  // Events ---------------------------
+  
+  event WalletUpdated(address newWallet);
+
+  // Functions ------------------------  
+
+  constructor() public {
+    wallet = owner;
   }
   
   function setWallet(address _wallet) public onlyOwner {
@@ -517,7 +536,7 @@ contract VaryonIcoDates is Owned, Utils {
 //
 // ----------------------------------------------------------------------------
 
-contract VaryonToken is ERC20Token, LockSlots, WBList, VaryonIcoDates {
+contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
 
   /* Utility variable */
   
