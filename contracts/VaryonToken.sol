@@ -220,7 +220,7 @@ contract LockSlots is ERC20Token, Utils {
   event IcoLockSet(address indexed account, uint term, uint tokens);
   event IcoLockChanged(address indexed account, uint oldTerm, uint newTerm);
 
-  /* Amount of currently unlocked tokens in an account */
+  // Amount of currently unlocked tokens in an account
   
   function registerLockedTokens(address _account, uint _tokens, uint _term) internal returns (uint idx) {
     // the term must be in the future
@@ -252,7 +252,7 @@ contract LockSlots is ERC20Token, Utils {
     emit RegisteredLockedTokens(_account, idx, _tokens, _term);
   }
 
-  /* Amount of currently unlocked tokens in an account */
+  // Amount of currently unlocked tokens in an account
   
   function unlockedTokens(address _account) public view returns (uint _unlockedTokens) {
     uint locked_tokens = 0;
@@ -264,8 +264,8 @@ contract LockSlots is ERC20Token, Utils {
     _unlockedTokens = balances[_account].sub(locked_tokens);
   }
 
-  /* Checks if a Lock Slot is available for an account */ 
-  /* (does not check slot 0 which is reserved for the ICO) */
+  // Checks if a Lock Slot is available for an account
+  // (does not check slot 0 which is reserved for the ICO) */
   
   function isAvailableLockSlot(address _account, uint _term) public view returns (bool) {
     // true if locking term has already passed
@@ -278,7 +278,7 @@ contract LockSlots is ERC20Token, Utils {
     return false;
   }
 
-  /* Set ICO lock (slot 0) */
+  // Set ICO lock (slot 0)
 
   function setIcoLock(address _account, uint _term) internal {
     lockTerm[_account][0] = _term;
@@ -288,7 +288,7 @@ contract LockSlots is ERC20Token, Utils {
     emit IcoLockSet(_account, _term, balances[_account]);
   }      
 
-  /* Modify ICO lock date (slot 0) */
+  // Modify ICO lock date (slot 0)
 
   function modifyIcoLock(address _account, uint _unixts) public onlyAdmin {
     // checks
@@ -475,17 +475,17 @@ contract VaryonIcoDates is Owned, Utils {
 
 contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
 
-  /* Utility variable */
+  // Utility variable */
   
   uint constant E6  = 10**6;
 
-  /* Basic token data */
+  // Basic token data
 
   string public constant name     = "Varyon Token";
   string public constant symbol   = "VAR";
   uint8  public constant decimals = 6;
 
-  /* Crowdsale parameters : token price, supply, caps and bonus */  
+  // Crowdsale parameters : token price, supply, caps and bonus  
   
   uint public constant TOKENS_PER_ETH = 10000; // test value, will be reset to 14750 before deployment
 
@@ -498,27 +498,27 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
   
   uint public constant MAX_BONUS_TOKENS = TOKEN_PRESALE_CAP * BONUS / 100; // 9,735,000 tokens
   
-  /* Crowdsale parameters : minimum purchase amounts expressed in tokens */    
+  // Crowdsale parameters : minimum purchase amounts expressed in tokens    
   
   uint public constant MIN_PURCHASE_PRESALE = 40 * TOKENS_PER_ETH * E6; // ETH 40 = VAR 590,000
   uint public constant MIN_PURCHASE_MAIN    =  1 * TOKENS_PER_ETH * E6; // ETH  1 = VAR  14,750
 
-  /* Crowdsale parameters : minimum contribution in ether */
+  // Crowdsale parameters : minimum contribution in ether
 
-  uint public constant MINIMUM_ETH_CONTRIBUTION  = 0.01 ether;
+  uint public constant MINIMUM_ETH_CONTRIBUTION = 0.01 ether;
   
-  /* Tokens from off-chain contributions (no eth returns for these tokens) */
+  // Tokens from off-chain contributions (no eth returns for these tokens)
   
   mapping(address => uint) public balancesOffline;
   
-  /* Tokens - pending */
+  // Tokens - pending
   
   mapping(address => uint) public balancesPending;
   mapping(address => uint) public balancesPendingOffline;
 
   uint public tokensIcoPending  = 0;
 
-  /* Tokens - issued */
+  // Tokens - issued
 
   // mapping(address => uint) balances; // in ERC20Token
     
@@ -533,17 +533,17 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
     
   mapping(address => uint) public balancesBonus;
   
-  /* Ether - tokens pending */
+  // Ether - tokens pending
     
   mapping(address => uint) public ethPending;
   uint public totalEthPending  = 0;
 
-  /* Ether - tokens issued */
+  // Ether - tokens issued
 
   mapping(address => uint) public ethContributed;
   uint public totalEthContributed = 0;
   
-  /* Keep track of refunds in case of failed ICO */
+  // Keep track of refunds in case of failed ICO
   
   mapping(address => bool) public refundClaimed;
   
@@ -559,36 +559,25 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
   event RevertPending(address indexed account, uint tokensCancelled, uint ethReturned, uint tokensIcoPending, uint totalEthPending);
   event RefundFailedIco(address indexed account, uint ethReturned);
 
-
   // Basic Functions ----------------------------
-
-  /* Initialize */
 
   constructor() public {}
 
-  /* Fallback */
-  
   function () public payable {
     buyTokens();
   }
 
   // Information Functions --------------------------------
 
-  /* Are tokens tradeable? */
-  
   function tradeable() public view returns (bool) {
     if (thresholdReached() && atNow() > dateIcoEnd) return true;
     return false;
   }
   
-  /* Has the minimum threshold been reached? */
-  
   function thresholdReached() public view returns (bool) {
     if (tokensIcoIssued >= TOKEN_THRESHOLD) return true;
     return false;
   }
-  
-  /* Tokens currently available to mint by owner */
   
   function availableToMint() public view returns (uint available) {
     if (atNow() <= dateIcoEnd) {
@@ -600,8 +589,6 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
     }
   }
   
-  /* Tokens currently available for sale */
-
   function tokensAvailableIco() public view returns (uint) {
     if (atNow() <= dateIcoMain) {
       return TOKEN_PRESALE_CAP.sub(tokensIcoIssued).sub(tokensIcoPending);
@@ -610,26 +597,18 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
     }
   }
   
-  /* Minimum number of tokens per contributor */
-
   function minimumInvestment() private view returns (uint) {
     if (atNow() <= dateIcoMain) return MIN_PURCHASE_PRESALE;
     return MIN_PURCHASE_MAIN;
   }
   
-  /* Convert ether to tokens */
-
   function ethToTokens(uint _eth) public pure returns (uint tokens) {
     tokens = _eth.mul(TOKENS_PER_ETH).mul(E6) / 1 ether;
   }
   
-  /* Convert tokens to ether */
-  
   function tokensToEth(uint _tokens) public pure returns (uint eth) {
     eth = _tokens.mul(1 ether) / TOKENS_PER_ETH.mul(E6);
   }
-  
-  /* Compute bonus tokens */
   
   function getBonus(uint _tokens) private view returns (uint) {
     if (atNow() <= dateIcoMain) return _tokens.mul(BONUS)/100;
@@ -638,7 +617,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
 
   // Minting of tokens by owner ---------------------------
   
-  /* Minting of unrestricted tokens */
+  // Minting of unrestricted tokens
 
   function mintTokens(address _account, uint _tokens) public onlyOwner {
     pMintTokens(_account, _tokens);
@@ -667,7 +646,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
     emit TokensMinted(_account, _tokens, 0);
   }
 
-  /* Minting of locked tokens */
+  // Minting of locked tokens
 
   function mintTokensLocked(address _account, uint _tokens, uint _term) public onlyOwner {
     pMintTokensLocked(_account, _tokens, _term);
@@ -761,7 +740,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
 
   }
   
-  /* contributions from pending (non-whitelisted) addresses */
+  // contributions from pending (non-whitelisted) addresses
 
   function buyTokensPending() private {
     
@@ -798,7 +777,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
 
   }
 
-  /* contributions from whitelisted addresses */
+  // contributions from whitelisted addresses
 
   function buyTokensWhitelist() private {
 
@@ -848,7 +827,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
     emit RegisterContribution(msg.sender, tokens, tokens_bonus, eth_to_contribute, eth_to_return);
   }
 
-  /* whitelisting of an address */
+  // whitelisting of an address
   
   function processWhitelisting(address _account) internal {
     require(atNow() <= dateIcoDeadline);
@@ -921,7 +900,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
     emit WhitelistingEvent(_account, tokens, tokens_bonus, tokens_to_return, eth_to_contribute, eth_to_return);
   }
   
-  /* Send ether to wallet if threshold reached */
+  // Send ether to wallet if threshold reached
   
   function sendEtherToWallet() private {
     address thisAddress = this;
@@ -930,7 +909,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
     }
   }
   
-  /* Adjust tokens that can be issued, based on limit and threshold, and update balances */
+  // Adjust tokens that can be issued, based on limit and threshold, and update balances
   
   function processTokenIssue(address _account, uint _tokens_to_add) private returns (uint tokens, uint tokens_bonus) {
 
@@ -995,14 +974,14 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
   
   // Cancel or Reclaim pending contributions -------------
 
-  /* blacklisting results in returning pending contributions */
+  // blacklisting results in returning pending contributions
    
   function processBlacklisting(address _account) internal {
     require(atNow() <= dateIcoDeadline);
     pRevertPending(_account);
   }
   
-  /* Admin can cancel pending contributions anytime */
+  // Admin can cancel pending contributions anytime
 
   function cancelPending(address _account) public onlyAdmin {
     pRevertPending(_account);
@@ -1014,14 +993,14 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
     }
   }
   
-  /* Contributor reclaims pending contribution after deadline (successful ICO) */
+  // Contributor reclaims pending contribution after deadline (successful ICO)
   
   function reclaimPending() public {
     require(thresholdReached() && atNow() > dateIcoDeadline);
     pRevertPending(msg.sender);
   }
   
-  /* private revert function for pending */
+  // private revert function for pending
   
   function pRevertPending(address _account) private {
     // nothing to do if there are no pending tokens
@@ -1075,13 +1054,13 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
   // ERC20 functions ==========================================================
   //
 
-  /* Transfer out any accidentally sent ERC20 tokens */
+  // Transfer out any accidentally sent ERC20 tokens
 
   function transferAnyERC20Token(address tokenAddress, uint amount) public onlyOwner returns (bool success) {
       return ERC20Interface(tokenAddress).transfer(owner, amount);
   }
 
-  /* Override "transfer" */
+  // Override "transfer"
 
   function transfer(address _to, uint _amount) public returns (bool success) {
     require(tradeable());
@@ -1089,7 +1068,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
     return super.transfer(_to, _amount);
   }
   
-  /* Override "transferFrom" */
+  // Override "transferFrom"
 
   function transferFrom(address _from, address _to, uint _amount) public returns (bool success) {
     require(tradeable());
@@ -1097,7 +1076,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
     return super.transferFrom(_from, _to, _amount);
   }
 
-  /* Multiple token transfers from one address to save gas */
+  // Multiple token transfers from one address to save gas
 
   function transferMultiple(address[] _addresses, uint[] _amounts) external {
     require(tradeable());
