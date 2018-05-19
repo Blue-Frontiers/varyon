@@ -215,6 +215,7 @@ contract LockSlots is ERC20Token, Utils {
     uint8 public constant LOCK_SLOTS = 6;
     mapping(address => uint[LOCK_SLOTS]) public lockTerm;
     mapping(address => uint[LOCK_SLOTS]) public lockAmnt;
+    mapping(address => bool) public hasLockedTokens;
 
     event RegisteredLockedTokens(address indexed account, uint indexed idx, uint tokens, uint term);
     event IcoLockSet(address indexed account, uint term, uint tokens);
@@ -244,22 +245,21 @@ contract LockSlots is ERC20Token, Utils {
         // register locked tokens
         if (term[idx] == 0) term[idx] = _term;
         amnt[idx] = amnt[idx].add(_tokens);
+        hasLockedTokens[_account] = true;
         emit RegisteredLockedTokens(_account, idx, _tokens, _term);
     }
 
     function lockedTokens(address _account) public view returns (uint locked) {
-        uint[LOCK_SLOTS] storage term = lockTerm[_account];
-        uint[LOCK_SLOTS] storage amnt = lockAmnt[_account];
-        for (uint i = 0; i < LOCK_SLOTS; i++) {
-            if (term[i] > atNow()) locked = locked.add(amnt[i]);
-        }
+        if (!hasLockedTokens[_account]) return;
+        return pNumberOfLockedTokens(_account);
     }
 
-    function unlockedTokens (address _account) public view returns (uint unlocked) {
+    function unlockedTokens(address _account) public view returns (uint unlocked) {
         unlocked = balances[_account].sub(lockedTokens(_account));
     }
 
     function isAvailableLockSlot(address _account, uint _term) public view returns (bool) {
+        if (!hasLockedTokens[_account]) return true;
         if (_term < atNow()) return true;
         uint[LOCK_SLOTS] storage term = lockTerm[_account];
         // does not check ICO slot 0
@@ -274,6 +274,7 @@ contract LockSlots is ERC20Token, Utils {
     function setIcoLock(address _account, uint _term, uint _tokens) internal {
         lockTerm[_account][0] = _term;
         lockAmnt[_account][0] = _tokens;
+        hasLockedTokens[_account] = true;
         emit IcoLockSet(_account, _term, _tokens);
     }
 
@@ -283,6 +284,23 @@ contract LockSlots is ERC20Token, Utils {
         uint term = lockTerm[_account][0];
         lockTerm[_account][0] = _unixts;
         emit IcoLockChanged(_account, term, _unixts);
+    }
+
+    // maintenance function
+
+    function updateHasLockedTokens(address _account) public {
+        require(hasLockedTokens[_account]); 
+        if (pNumberOfLockedTokens(_account) == 0) hasLockedTokens[_account] = false;
+    }
+
+    // private function
+
+    function pNumberOfLockedTokens(address _account) private returns (uint locked) {
+        uint[LOCK_SLOTS] storage term = lockTerm[_account];
+        uint[LOCK_SLOTS] storage amnt = lockAmnt[_account];
+        for (uint i = 0; i < LOCK_SLOTS; i++) {
+            if (term[i] >= atNow()) locked = locked.add(amnt[i]);
+        }
     }
 
 }
@@ -335,7 +353,7 @@ contract WBList is Owned, Utils {
         for (uint i = 0; i < _accounts.length; i++) {
             pWhitelist(_accounts[i], _limits[i], _thresholds[i], _terms[i]);
         }
-    }    
+    }
 
     function pWhitelist(address _account, uint _limit, uint _threshold, uint _term) private {
         require(!whitelist[_account], "account is already whitelisted");
@@ -345,7 +363,7 @@ contract WBList is Owned, Utils {
         if (_threshold > 0 ) require(_threshold > _limit, "threshold not above limit");
         if (_term > 0) {
             require(_term > atNow(), "the locking period cannot be in the past");
-            require(_term < atNow() + MAX_LOCKING_PERIOD, "the locking period cannot exceed 720 days");
+            require(_term < atNow() + MAX_LOCKING_PERIOD, "the locking period cannot exceed 5 years");
         }
 
         // add to whitelist
@@ -357,7 +375,7 @@ contract WBList is Owned, Utils {
 
         // actions linked to whitelisting
         processWhitelisting(_account);
-    } 
+    }
 
 
     function addToBlacklist(address _account) public onlyAdmin {
@@ -459,9 +477,9 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
 
     // Basic token data
 
-    string public constant name       = "Varyon Token";
-    string public constant symbol     = "VAR";
-    uint8    public constant decimals = 18;
+    string public constant name = "Varyon Token";
+    string public constant symbol = "VAR";
+    uint8 public constant decimals = 18;
 
     // Crowdsale parameters : token price, supply, caps and bonus
 
@@ -618,7 +636,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
 
         // update
         balances[_account] = balances[_account].add(_tokens);
-        balancesMinted[_account] = balances[_account].add(_tokens);
+        balancesMinted[_account] = balancesMinted[_account].add(_tokens);
         tokensMinted = tokensMinted.add(_tokens);
         tokensIssuedTotal = tokensIssuedTotal.add(_tokens);
 
@@ -882,7 +900,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
         emit Transfer(0x0, _account, tokens.add(tokens_bonus));
         emit WhitelistingEvent(_account, tokens, tokens_bonus, tokens_to_return, eth_to_contribute, eth_to_return);
     }
-    
+
     // Send ether to wallet if threshold reached
 
     function sendEtherToWallet() private {
@@ -897,7 +915,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
     function processTokenIssue(address _account, uint _tokens_to_add) private returns (uint tokens, uint tokens_bonus) {
 
         tokens = _tokens_to_add;
-        uint balance = balances[msg.sender].sub(balancesBonus[msg.sender]).sub(balancesMinted[msg.sender]);
+        uint balance = balances[_account].sub(balancesBonus[_account]).sub(balancesMinted[_account]);
         uint balance_exp = balance.add(tokens);
         uint limit = whitelistLimit[_account];
         uint threshold = whitelistThreshold[_account];
@@ -934,7 +952,7 @@ contract VaryonToken is ERC20Token, Wallet, LockSlots, WBList, VaryonIcoDates {
                 setIcoLock(_account, whitelistLockDate[_account], tokens_crowdsale);
             }
         }
-    }    
+    }
 
     // Cancel or Reclaim pending contributions ------------
 
