@@ -249,13 +249,13 @@ contract LockSlots is ERC20Token, Utils {
         emit RegisteredLockedTokens(_account, idx, _tokens, _term);
     }
 
-    function lockedTokens(address _account) public view returns (uint locked) {
-        if (!hasLockedTokens[_account]) return;
+    function lockedTokens(address _account) public view returns (uint) {
+        if (!hasLockedTokens[_account]) return 0;
         return pNumberOfLockedTokens(_account);
     }
 
-    function unlockedTokens(address _account) public view returns (uint unlocked) {
-        unlocked = balances[_account].sub(lockedTokens(_account));
+    function unlockedTokens(address _account) public view returns (uint) {
+        return balances[_account].sub(lockedTokens(_account));
     }
 
     function isAvailableLockSlot(address _account, uint _term) public view returns (bool) {
@@ -295,7 +295,7 @@ contract LockSlots is ERC20Token, Utils {
 
     // private function
 
-    function pNumberOfLockedTokens(address _account) private returns (uint locked) {
+    function pNumberOfLockedTokens(address _account) private view returns (uint locked) {
         uint[LOCK_SLOTS] storage term = lockTerm[_account];
         uint[LOCK_SLOTS] storage amnt = lockAmnt[_account];
         for (uint i = 0; i < LOCK_SLOTS; i++) {
