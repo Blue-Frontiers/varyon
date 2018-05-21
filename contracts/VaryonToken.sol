@@ -179,7 +179,7 @@ contract ERC20Token is ERC20Interface, Owned {
     }
 
     function approve(address _spender, uint _amount) public returns (bool success) {
-        require(balances[msg.sender] >= _amount);
+        // require(balances[msg.sender] >= _amount);
         allowed[msg.sender][_spender] = _amount;
         emit Approval(msg.sender, _spender, _amount);
         return true;
